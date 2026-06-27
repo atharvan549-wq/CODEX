@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Lead Generation Admin</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f7f8fb; color: #172033; }
+    main { max-width: 1100px; margin: auto; }
+    form, .lead { background: white; border: 1px solid #dde3ee; border-radius: 14px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 8px 24px #20304a12; }
+    label { display: grid; gap: .35rem; font-weight: 700; }
+    input { padding: .7rem; border: 1px solid #b9c3d3; border-radius: 10px; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    button { background: #2854d8; color: white; border: 0; padding: .8rem 1rem; border-radius: 10px; font-weight: 800; cursor: pointer; }
+    pre { white-space: pre-wrap; background: #f2f5fa; padding: .8rem; border-radius: 10px; }
+    .score { font-size: 1.5rem; font-weight: 900; color: #1d7f43; }
+    .error { color: #a4001d; font-weight: 700; }
+    @media (max-width: 850px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>AI Lead Generation Admin</h1>
+  <p>Choose a niche, location, target budget, and minimum lead quality. The pipeline collects, enriches, stores, scores, and drafts outreach for matching leads.</p>
+  <form id="campaign-form">
+    <div class="grid">
+      <label>Niche <input name="niche" value="Dental clinics" required></label>
+      <label>Location <input name="location" value="Austin, TX" required></label>
+      <label>Monthly budget <input name="budget" type="number" value="2500" min="0"></label>
+      <label>Minimum quality <input name="min_quality" type="number" value="65" min="0" max="100"></label>
+    </div>
+    <p><button type="submit">Run lead campaign</button></p>
+    <div id="status"></div>
+  </form>
+  <section id="leads"></section>
+</main>
+<script>
+async function loadLeads() {
+  const response = await fetch('/api/leads');
+  const data = await response.json();
+  document.getElementById('leads').innerHTML = data.leads.map(item => `
+    <article class="lead">
+      <div class="score">${item.score.total}/100 · ${item.score.quality}</div>
+      <h2>${item.lead.name}</h2>
+      <p><strong>${item.lead.niche}</strong> · ${item.lead.location} · ${item.lead.email || 'no email'}</p>
+      <p>${item.score.reasons.join(' · ')}</p>
+      <h3>${item.outreach.subject}</h3>
+      <pre>${item.outreach.body}</pre>
+    </article>`).join('') || '<p>No leads yet.</p>';
+}
+
+document.getElementById('campaign-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const payload = Object.fromEntries(form.entries());
+  payload.budget = Number(payload.budget);
+  payload.min_quality = Number(payload.min_quality);
+  payload.limit = 10;
+  const status = document.getElementById('status');
+  status.textContent = 'Running campaign...';
+  status.className = '';
+  try {
+    const response = await fetch('/api/campaigns/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Campaign failed');
+    status.textContent = `Saved ${data.saved_count} qualified leads.`;
+    await loadLeads();
+  } catch (error) {
+    status.textContent = error.message;
+    status.className = 'error';
+  }
+});
+loadLeads();
+</script>
+</body>
+</html>
